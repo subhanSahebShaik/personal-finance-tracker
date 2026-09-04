@@ -155,7 +155,7 @@ SIMPLE_JWT = {
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOWED_ORIGINS = [""]
+CORS_ALLOWED_ORIGINS = ["https://personal-finance-tracker-ui-c6dx.onrender.com"]
 
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
