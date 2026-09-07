@@ -49,4 +49,11 @@ urlpatterns = [
         views.categories,
         name="categories",
     ),
+
+    # Recent Transactions
+    path(
+        "transactions/recent/",
+        views.recent_transactions,
+        name="recent-transactions",
+    ),
 ]

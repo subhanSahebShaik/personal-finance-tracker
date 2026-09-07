@@ -114,3 +114,24 @@ def categories(request):
         "category", flat=True).distinct().order_by("category"))
 
     return Response({"categories": list(categories)})
+
+
+@api_view(["GET"])
+def recent_transactions(request):
+    try:
+        limit = int(request.GET.get("n", 5))
+    except (TypeError, ValueError):
+        limit = 5
+
+    # Keep the endpoint reasonable even if someone passes a huge number.
+    limit = max(1, min(limit, 50))
+
+    transactions = (
+        Transaction.objects
+        .all()
+        .order_by("-transaction_at")[:limit]
+    )
+
+    serializer = TransactionSerializer(transactions, many=True)
+
+    return Response({"transactions": serializer.data})

@@ -12,19 +12,23 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
+import configparser
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+config = configparser.ConfigParser(interpolation=None)
+config.read(BASE_DIR / "config.conf")
 
-def get_setting(key):
-    return os.getenv(key)
+
+def get_setting(section, key):
+    return os.getenv(key) or config.get(section, key, fallback=None)
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = get_setting("DJANGO_SECRET_KEY")
+SECRET_KEY = get_setting("django", "DJANGO_SECRET_KEY")
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -85,11 +89,11 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        "NAME": get_setting("POST_DB_NAME"),
-        "USER": get_setting("POST_DB_USER"),
-        "PASSWORD": get_setting("POST_DB_PASSWORD"),
-        "HOST": get_setting("POST_DB_HOST"),
-        "PORT": get_setting("POST_DB_PORT"),
+        "NAME": get_setting("postgres_db", "POST_DB_NAME"),
+        "USER": get_setting("postgres_db", "POST_DB_USER"),
+        "PASSWORD": get_setting("postgres_db", "POST_DB_PASSWORD"),
+        "HOST": get_setting("postgres_db", "POST_DB_HOST"),
+        "PORT": get_setting("postgres_db", "POST_DB_PORT"),
     }
 }
 
@@ -155,7 +159,8 @@ SIMPLE_JWT = {
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOWED_ORIGINS = ["https://personal-finance-tracker-ui-c6dx.onrender.com"]
+CORS_ALLOWED_ORIGINS = [
+    "https://personal-finance-tracker-ui-c6dx.onrender.com"]
 
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True

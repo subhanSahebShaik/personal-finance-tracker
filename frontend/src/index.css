@@ -1138,3 +1138,122 @@ button {
 .logout-button:hover {
   color: #a04d3d;
 }
+
+.recent-section {
+  margin-top: 24px;
+}
+
+.recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 10px;
+}
+
+.recent-header h2 {
+  margin: 0;
+
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.recent-table-wrap {
+  overflow-x: auto;
+
+  border: 1px solid #e3e6e3;
+  border-radius: 12px;
+
+  background: #ffffff;
+}
+
+.recent-table {
+  width: 100%;
+  border-collapse: collapse;
+
+  font-size: 13px;
+}
+
+.recent-table th {
+  padding: 11px 14px;
+
+  text-align: left;
+
+  color: #777c78;
+
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  border-bottom: 1px solid #e9ebe9;
+}
+
+.recent-table td {
+  padding: 12px 14px;
+
+  border-bottom: 1px solid #f0f1f0;
+}
+
+.recent-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.recent-table tbody tr {
+  cursor: pointer;
+}
+
+.recent-table tbody tr:hover {
+  background: #fafbfa;
+}
+
+.recent-transaction-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.recent-dot {
+  flex: 0 0 auto;
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+}
+
+.recent-dot-credit {
+  background: #62806c;
+}
+
+.recent-dot-debit {
+  background: #a46758;
+}
+
+.recent-amount-heading,
+.recent-amount {
+  text-align: right !important;
+}
+
+.recent-amount {
+  white-space: nowrap;
+
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+
+  .recent-table th:nth-child(2),
+  .recent-table td:nth-child(2) {
+    display: none;
+  }
+
+  .recent-table th,
+  .recent-table td {
+    padding: 11px 10px;
+  }
+
+  .recent-table {
+    min-width: 460px;
+  }
+}

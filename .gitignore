@@ -24,3 +24,5 @@ yarn-error.log*
 
 # Compiled and Cached python files
 *.pyc
+
+*.conf

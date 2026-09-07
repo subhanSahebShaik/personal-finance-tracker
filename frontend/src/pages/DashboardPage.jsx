@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getSummary } from "../api";
+import { getSummary, getRecentTransactions } from "../api";
 import AppShell from "../components/AppShell";
 import StateMessage from "../components/StateMessage";
 import AddTransactionModal from "../components/AddTransactionModal";
@@ -22,6 +22,7 @@ export default function DashboardPage() {
   const [showAddTransaction, setShowAddTransaction] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const { isAuthenticated, logout } = useAuth();
+  const [recentTransactions, setRecentTransactions] = useState([]);
 
   useEffect(() => {
     async function load() {
@@ -29,9 +30,15 @@ export default function DashboardPage() {
       setError("");
 
       try {
-        setData(await getSummary(year));
+        const [summaryData, recentData] = await Promise.all([
+          getSummary(year),
+          getRecentTransactions(5),
+        ]);
+
+        setData(summaryData);
+        setRecentTransactions(recentData.transactions || []);
       } catch (err) {
-        setError(err.message || "Could not load summary.");
+        setError(err.message || "Could not load data.");
       } finally {
         setLoading(false);
       }
@@ -186,6 +193,79 @@ export default function DashboardPage() {
                     })}
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {!loading && recentTransactions.length > 0 && (
+        <section className="recent-section">
+          <div className="recent-header">
+            <h2>Recent</h2>
+          </div>
+
+          <div className="recent-table-wrap">
+            <table className="recent-table">
+              <thead>
+                <tr>
+                  <th>Transaction</th>
+                  <th>Category</th>
+                  <th>Date</th>
+                  <th className="recent-amount-heading">Amount</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {recentTransactions.map((transaction) => {
+                  const isCredit = transaction.event_type === "CREDIT";
+
+                  return (
+                    <tr
+                      key={transaction.id}
+                      onClick={() =>
+                        navigate(`/transaction/${transaction.id}`)
+                      }
+                    >
+                      <td>
+                        <div className="recent-transaction-main">
+                          <span
+                            className={`recent-dot ${isCredit
+                                ? "recent-dot-credit"
+                                : "recent-dot-debit"
+                              }`}
+                          />
+
+                          <span>
+                            {transaction.event_details}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        {transaction.category}
+                      </td>
+
+                      <td>
+                        {new Date(
+                          transaction.transaction_at
+                        ).toLocaleDateString()}
+                      </td>
+
+                      <td
+                        className={`recent-amount ${isCredit
+                            ? "money-credit"
+                            : "money-debit"
+                          }`}
+                      >
+                        {isCredit ? "+" : "−"}
+                        {formatCurrency(
+                          Number(transaction.amount)
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

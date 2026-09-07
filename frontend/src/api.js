@@ -232,5 +232,12 @@ export const getCategories = () =>
     .get("/categories/")
     .then((response) => response.data);
 
+export const getRecentTransactions = (n = 5) =>
+  api
+    .get("/transactions/recent/", {
+      params: { n },
+    })
+    .then((response) => response.data);
+
 
 export default api;
