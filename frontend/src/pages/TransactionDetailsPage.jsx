@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
-import { getTransaction } from "../api";
+import {
+  getTransaction,
+  updateTransaction,
+  deleteTransaction,
+  getTransactions,
+} from "../api";
+
 import AppShell from "../components/AppShell";
 import StateMessage from "../components/StateMessage";
-import { formatCurrency, formatDateTime } from "../utils/finance";
+import AddTransactionModal from "../components/AddTransactionModal";
+
+import {
+  formatCurrency,
+  formatDateTime,
+} from "../utils/finance";
+
 import { useAuth } from "../auth/AuthContext";
 
 export default function TransactionDetailsPage() {
@@ -17,33 +29,76 @@ export default function TransactionDetailsPage() {
   const [error, setError] = useState("");
   const { isAuthenticated, logout } = useAuth();
 
+  const navigate = useNavigate();
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const backTo = location.state?.backTo || "/";
 
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const response = await getTransaction(transactionId);
-        setTransaction(response);
-
-        const related = await Promise.all(
-          (response.related_transactions || []).map((id) =>
-            getTransaction(id).catch(() => null)
-          )
-        );
-
-        setRelatedTransactions(related.filter(Boolean));
-      } catch (err) {
-        setError(err.message || "Could not load transaction.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    load();
+    loadTransaction();
   }, [transactionId]);
+
+
+  async function loadTransaction() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await getTransaction(transactionId);
+
+      setTransaction(response);
+
+      const related = await Promise.all(
+        (response.related_transactions || []).map((id) =>
+          getTransaction(id).catch(() => null)
+        )
+      );
+
+      setRelatedTransactions(
+        related.filter(Boolean)
+      );
+
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+        err.message ||
+        "Could not load transaction."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleUpdated() {
+    setShowEdit(false);
+    await loadTransaction();
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+
+    try {
+      await deleteTransaction(transaction.id);
+
+      navigate(backTo, {
+        replace: true,
+      });
+
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+        err.message ||
+        "Could not delete transaction."
+      );
+
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  }
 
   const repayment = useMemo(() => {
     if (!transaction?.is_returnable) return null;
@@ -83,6 +138,23 @@ export default function TransactionDetailsPage() {
       backTo={backTo}
       actions={
         <div className="dashboard-actions">
+
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => setShowEdit(true)}
+          >
+            Edit
+          </button>
+
+          <button
+            type="button"
+            className="danger-button"
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            Delete
+          </button>
+
           {isAuthenticated && (
             <button
               type="button"
@@ -92,6 +164,7 @@ export default function TransactionDetailsPage() {
               Sign out
             </button>
           )}
+
         </div>
       }
     >
@@ -100,20 +173,18 @@ export default function TransactionDetailsPage() {
           <div>
             <span className="muted">{formatDateTime(transaction.transaction_at)}</span>
             <span
-              className={`type-label ${
-                transaction.event_type === "CREDIT"
-                  ? "type-label--credit"
-                  : "type-label--debit"
-              }`}
+              className={`type-label ${transaction.event_type === "CREDIT"
+                ? "type-label--credit"
+                : "type-label--debit"
+                }`}
             >
               {transaction.event_type === "CREDIT" ? "Credit" : "Debit"}
             </span>
           </div>
 
           <strong
-            className={`detail-amount ${
-              transaction.event_type === "CREDIT" ? "money-credit" : "money-debit"
-            }`}
+            className={`detail-amount ${transaction.event_type === "CREDIT" ? "money-credit" : "money-debit"
+              }`}
           >
             {transaction.event_type === "CREDIT" ? "+" : "−"}
             {formatCurrency(transaction.amount)}
@@ -194,6 +265,51 @@ export default function TransactionDetailsPage() {
             </Link>
           ))}
         </section>
+      )}
+
+      {showEdit && (
+        <AddTransactionModal
+          transaction={transaction}
+          onClose={() => setShowEdit(false)}
+          onUpdated={handleUpdated}
+        />
+      )}
+
+      {showDeleteConfirm && (
+        <div className="login-overlay">
+          <div className="delete-modal">
+
+            <h2>Delete transaction?</h2>
+
+            <p>
+              This cannot be undone.
+              Any links to this transaction will also be removed.
+            </p>
+
+            <div className="delete-actions">
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="danger-button"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+
+            </div>
+
+          </div>
+        </div>
       )}
     </AppShell>
   );

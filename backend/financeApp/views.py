@@ -1,4 +1,5 @@
 from django.db.models import Sum
+from django.db import transaction as db_transaction
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -56,30 +57,191 @@ def transaction_detail(request, transaction_id):
             status=status.HTTP_404_NOT_FOUND,
         )
 
+    # ---------------------------------------------------------
+    # GET
+    # ---------------------------------------------------------
+
     if request.method == "GET":
 
         serializer = TransactionSerializer(transaction)
 
         return Response(serializer.data)
 
+    # ---------------------------------------------------------
+    # PATCH
+    # ---------------------------------------------------------
+
     if request.method == "PATCH":
 
-        serializer = TransactionSerializer(
-            transaction,
-            data=request.data,
-            partial=True
-        )
+        with db_transaction.atomic():
 
-        if serializer.is_valid():
-            transaction = serializer.save()
+            old_related = set(
+                str(item)
+                for item in (transaction.related_transactions or [])
+            )
 
-            return Response(TransactionSerializer(transaction).data)
+            serializer = TransactionSerializer(
+                transaction,
+                data=request.data,
+                partial=True,
+            )
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            if not serializer.is_valid():
+                return Response(
+                    serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-    transaction.delete()
+            updated_transaction = serializer.save()
 
-    return Response({"success": True}, status=status.HTTP_200_OK)
+            new_related = set(
+                str(item)
+                for item in (
+                    updated_transaction.related_transactions or []
+                )
+            )
+
+            added = new_related - old_related
+            removed = old_related - new_related
+
+            transaction_id_str = str(updated_transaction.id)
+
+            # -------------------------------------------------
+            # Validate ALL newly related transactions first
+            # -------------------------------------------------
+
+            related_objects = {}
+
+            for related_id in added:
+
+                try:
+                    related = Transaction.objects.get(id=related_id)
+                except Transaction.DoesNotExist:
+
+                    return Response(
+                        {
+                            "detail": (
+                                f"Related transaction "
+                                f"{related_id} not found."
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Prevent a transaction from relating to itself.
+                if str(related.id) == transaction_id_str:
+                    return Response(
+                        {
+                            "detail": (
+                                "A transaction cannot be related "
+                                "to itself."
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                related_objects[related_id] = related
+
+            # -------------------------------------------------
+            # Add reverse relationships
+            # -------------------------------------------------
+
+            for related_id, related in related_objects.items():
+
+                related_ids = [
+                    str(item)
+                    for item in (related.related_transactions or [])
+                ]
+
+                if transaction_id_str not in related_ids:
+                    related_ids.append(transaction_id_str)
+
+                    related.related_transactions = related_ids
+
+                    related.save(
+                        update_fields=[
+                            "related_transactions",
+                            "updated_at",
+                        ]
+                    )
+
+            # -------------------------------------------------
+            # Remove reverse relationships
+            # -------------------------------------------------
+
+            for related_id in removed:
+
+                try:
+                    related = Transaction.objects.get(id=related_id)
+                except Transaction.DoesNotExist:
+                    continue
+
+                related_ids = [
+                    str(item)
+                    for item in (related.related_transactions or [])
+                ]
+
+                if transaction_id_str in related_ids:
+
+                    related_ids.remove(transaction_id_str)
+
+                    related.related_transactions = related_ids
+
+                    related.save(
+                        update_fields=[
+                            "related_transactions",
+                            "updated_at",
+                        ]
+                    )
+
+            return Response(
+                TransactionSerializer(updated_transaction).data
+            )
+
+    # ---------------------------------------------------------
+    # DELETE
+    # ---------------------------------------------------------
+
+    if request.method == "DELETE":
+
+        with db_transaction.atomic():
+
+            transaction_id_str = str(transaction.id)
+
+            related_ids = [
+                str(item)
+                for item in (transaction.related_transactions or [])
+            ]
+
+            # Remove this transaction from every related record.
+            for related_id in related_ids:
+
+                try:
+                    related = Transaction.objects.get(id=related_id)
+                except Transaction.DoesNotExist:
+                    continue
+
+                ids = [
+                    str(item)
+                    for item in (related.related_transactions or [])
+                ]
+
+                if transaction_id_str in ids:
+
+                    ids.remove(transaction_id_str)
+
+                    related.related_transactions = ids
+
+                    related.save(
+                        update_fields=[
+                            "related_transactions",
+                            "updated_at",
+                        ]
+                    )
+
+            transaction.delete()
+
+        return Response({"success": True}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
@@ -135,3 +297,35 @@ def recent_transactions(request):
     serializer = TransactionSerializer(transactions, many=True)
 
     return Response({"transactions": serializer.data})
+
+
+def add_related_transaction(transaction_id, related_id):
+    transaction_id = str(transaction_id)
+    related_id = str(related_id)
+
+    transaction = Transaction.objects.get(id=transaction_id)
+    related = Transaction.objects.get(id=related_id)
+
+    if related_id not in transaction.related_transactions:
+        transaction.related_transactions.append(related_id)
+        transaction.save(update_fields=["related_transactions", "updated_at"])
+
+    if transaction_id not in related.related_transactions:
+        related.related_transactions.append(transaction_id)
+        related.save(update_fields=["related_transactions", "updated_at"])
+
+
+def remove_related_transaction(transaction_id, related_id):
+    transaction_id = str(transaction_id)
+    related_id = str(related_id)
+
+    transaction = Transaction.objects.get(id=transaction_id)
+    related = Transaction.objects.get(id=related_id)
+
+    if related_id in transaction.related_transactions:
+        transaction.related_transactions.remove(related_id)
+        transaction.save(update_fields=["related_transactions", "updated_at"])
+
+    if transaction_id in related.related_transactions:
+        related.related_transactions.remove(transaction_id)
+        related.save(update_fields=["related_transactions", "updated_at"])
